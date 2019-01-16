@@ -10,12 +10,10 @@ import java.util.Map;
 import java.util.Set;
 
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class SetUtilTest {
 	
-	private static final Logger logger = LoggerFactory.getLogger(jaicore.basic.sets.SetUtilTest.class);
+//	private static final Logger logger = LoggerFactory.getLogger(jaicore.basic.sets.SetUtilTest.class);
 	
 	@Test
 	public void testMappingCreation() throws InterruptedException {
@@ -103,7 +101,7 @@ public class SetUtilTest {
 		System.out.println((end2 - end1) + "ms");
 	}
 	
-	@Test
+	//@Test
 	public void testcalculateNumberOfTotalOrderings() throws InterruptedException {
 		final String a,b,c,d;
 		a = "a";

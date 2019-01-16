@@ -1,14 +1,8 @@
 package jaicore.logic.fol.util;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import jaicore.basic.sets.SetUtil;
 import jaicore.logic.fol.structure.CNFFormula;
@@ -18,6 +12,7 @@ import jaicore.logic.fol.structure.Literal;
 import jaicore.logic.fol.structure.LiteralParam;
 import jaicore.logic.fol.structure.LiteralSet;
 import jaicore.logic.fol.structure.Monom;
+import jaicore.logic.fol.structure.Type;
 import jaicore.logic.fol.structure.VariableParam;
 
 /**
@@ -26,8 +21,6 @@ import jaicore.logic.fol.structure.VariableParam;
  * @author fmohr, mbunse
  */
 public class LogicUtil {
-
-	private static final Logger logger = LoggerFactory.getLogger(LogicUtil.class);
 
 	/**
 	 * @param a
@@ -55,10 +48,6 @@ public class LogicUtil {
 
 	}
 	
-	public static Collection<Map<VariableParam, LiteralParam>> getSubstitutionsThatEnableForwardChaining(Collection<Literal> factbase, Collection<Literal> premise) {
-		return getSubstitutionsThatEnableForwardChaining(factbase, new ArrayList<>(premise));
-	}
-	
 	public static boolean doesPremiseContainAGroundLiteralThatIsNotInFactBase(Collection<Literal> factbase, Collection<Literal> premise) {
 		for (Literal l : premise) {
 			if (l.isGround() && !factbase.contains(l))
@@ -82,70 +71,17 @@ public class LogicUtil {
 		}
 		return false;
 	}
-
-	private static Collection<Map<VariableParam, LiteralParam>> getSubstitutionsThatEnableForwardChaining(Collection<Literal> factbase, List<Literal> premise) {
-		
-		logger.info("Computing substitution for {} that enable forward chaining from {}", premise, factbase);
-		Collection<Map<VariableParam, LiteralParam>> mappings = new HashSet<>();
-
-		/* if the premise is empty, add the empty mapping */
-		if (premise.isEmpty()) {
-			mappings.add(new HashMap<>());
-			return mappings;
-		}
-
-		/* in any other case, select a literal and compute remaining premise, which is the premise minus the first element, minus all other ground elements */
-		Literal nextLiteral = premise.get(0);
-		List<Literal> remainingPremise = new ArrayList<>();
-		for (int i = 1; i < premise.size(); i++) {
-			if (!premise.get(i).getVariableParams().isEmpty())
-				remainingPremise.add(premise.get(i));
-		}
-		List<VariableParam> openParams = nextLiteral.getVariableParams();
-
-		/* if there are no open params, we do not need to make decisions here, so just compute subsolutions */
-		Collection<Map<VariableParam, LiteralParam>> choices = new HashSet<>();
-		if (openParams.isEmpty()) {
-			choices.add(new HashMap<>());
-		}
-
-		/* otherwise, select literal from the factbase that could be used for unification */
-		else {
-			for (Literal fact : factbase) {
-				if (!fact.getPropertyName().equals(nextLiteral.getPropertyName()) || fact.isPositive() != nextLiteral.isPositive())
-					continue;
-				List<LiteralParam> factParams = fact.getParameters(); // should only contain constant params
-				List<LiteralParam> nextLiteralParams = nextLiteral.getParameters();
-				Map<VariableParam, LiteralParam> submap = new HashMap<>();
-
-				/* create a substitution that grounds the rest of the literal */
-				for (int i = 0; i < factParams.size(); i++) {
-					if (nextLiteralParams.get(i) instanceof VariableParam) {
-						submap.put((VariableParam) nextLiteralParams.get(i), factParams.get(i));
-					}
-				}
-				choices.add(submap);
+	
+	public static boolean verifyThatGroundingEnablesPremise(Collection<Literal> factbase, Collection<Literal> premise, Map<VariableParam,LiteralParam> grounding) {
+		for (Literal l : premise) {
+			Literal lg = new Literal(l, grounding);
+			if (factbase.contains(lg) != l.isPositive()) {
+				System.err.println("Literal " + l + " in premise ground to " + lg + " does not follow from state: ");
+				factbase.stream().sorted((l1,l2) -> l1.toString().compareTo(l2.toString())).forEach(lit -> System.out.println("\t" + lit));
+				return false;
 			}
 		}
-
-		/* now apply the different possible choices substitution to the remaining premise and compute possible submappings */
-		for (Map<VariableParam, LiteralParam> submap : choices) {
-			Monom modifiedRemainingPremise = new Monom(remainingPremise, submap);
-			
-			/* if there is a ground literal in the modified remaining premise that is not in the fact base, skip this option */
-			if (doesPremiseContainAGroundLiteralThatIsNotInFactBase(factbase, modifiedRemainingPremise))
-				continue;
-			
-			/* otherwise recurse */
-			Collection<Map<VariableParam, LiteralParam>> subsolutions = getSubstitutionsThatEnableForwardChaining(factbase, modifiedRemainingPremise);
-			for (Map<VariableParam, LiteralParam> subsolution : subsolutions) {
-				Map<VariableParam, LiteralParam> solutionToReturn = new HashMap<>(subsolution);
-				solutionToReturn.putAll(submap);
-				mappings.add(solutionToReturn);
-			}
-		}
-		logger.info("Finished computation of substitution for {} that enable forward chaining from {}: {}", premise, factbase, mappings);
-		return mappings;
+		return true;
 	}
 
 	public static boolean canLiteralBeUnifiedWithLiteralFromDatabase(Collection<Literal> set, Literal literal) {
@@ -169,7 +105,21 @@ public class LogicUtil {
 	}
 
 	public static LiteralParam parseParamName(String name) {
-		return (name.startsWith("'") && name.endsWith("'")) ? new ConstantParam(name.substring(1, name.length() - 1)) : new VariableParam(name);
+		boolean isConstant = false;
+		if (name.contains("'")) {
+			if (!name.startsWith("'") || !name.endsWith("'") || (name = name.substring(1, name.length() - 1)).contains("'"))
+				throw new IllegalArgumentException("A parameter that contains simple quotes must contain EXACTLY two such quotes (one in the beginning, one in the end). Such a name indicates a constant!");
+			isConstant = true;
+		}
+		Type type = null;
+		if (name.contains(":")) {
+			String[] parts = name.split(":");
+			if (parts.length != 2)
+				throw new IllegalArgumentException("The name of a parameter must contain at most one colon! A colon is used to separate the name from the type!");
+			name = parts[0];
+			type = new Type(parts[1]);
+		}
+		return isConstant ? new ConstantParam(name, type) : new VariableParam(name, type);
 	}
 
 	public static boolean evalEquality(Literal l) {

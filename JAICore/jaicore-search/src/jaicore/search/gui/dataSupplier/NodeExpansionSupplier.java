@@ -9,7 +9,6 @@ import com.google.common.eventbus.EventBus;
 import com.google.common.eventbus.Subscribe;
 
 import jaicore.graphvisualizer.events.controlEvents.ControlEvent;
-import jaicore.graphvisualizer.events.controlEvents.IsLiveEvent;
 import jaicore.graphvisualizer.events.controlEvents.NodePushed;
 import jaicore.graphvisualizer.events.controlEvents.ResetEvent;
 import jaicore.graphvisualizer.events.controlEvents.StepEvent;
@@ -18,17 +17,16 @@ import jaicore.graphvisualizer.events.graphEvents.GraphInitializedEvent;
 import jaicore.graphvisualizer.events.graphEvents.NodeReachedEvent;
 import jaicore.graphvisualizer.events.graphEvents.NodeTypeSwitchEvent;
 import jaicore.graphvisualizer.gui.dataSupplier.ISupplier;
-import jaicore.search.structure.core.Node;
+import jaicore.search.model.travesaltree.Node;
 
 /**
  * A class which works similar to the recorder.
  * In contrast to the recorder the sent graphsEvents are filtered by the branch.
- * @author jkoepe
  *
  */
 public class NodeExpansionSupplier implements ISupplier {
 	
-	// variabled
+	// variable
 	static int i = 0;
 	
 	public EventBus eventbus;
@@ -38,9 +36,6 @@ public class NodeExpansionSupplier implements ISupplier {
 	private Node currentRoot;
 	
 	private int index;
-
-	private int currentIndex;
-
 	
 	/**
 	 * Creates a new NodeExpansionSupplier
@@ -51,7 +46,6 @@ public class NodeExpansionSupplier implements ISupplier {
 		events = new ArrayList<GraphEvent>();
 		currentRoot = null;
 		index = 0;
-
 	}
 
 	
@@ -70,21 +64,18 @@ public class NodeExpansionSupplier implements ISupplier {
 	@Subscribe
 	public void receiveControlEvent(ControlEvent event) {
 		
-		// if a node was pushed, the branch out of this node is the last pushed node
+		/* if a node was pushed, the branch out of this node is the last pushed node*/
 		if(event instanceof NodePushed) {
 			this.currentRoot = (Node) ((NodePushed) event).getNode();
 			System.out.println(((NodePushed) event).getNode());
 			show(0);
 		}
 
-
-
-		if(event instanceof StepEvent)
-			if(((StepEvent) event).forward()) {
-				index += ((StepEvent) event).getSteps();
-				if(currentRoot != null)
-					show(index-((StepEvent) event).getSteps());
-			}
+		if(((StepEvent) event).forward()) {
+			index += ((StepEvent) event).getSteps();
+			if(currentRoot != null)
+				show(index-((StepEvent) event).getSteps());
+		}
 		if (event instanceof ResetEvent) {
 			this.index = 0;
 		}

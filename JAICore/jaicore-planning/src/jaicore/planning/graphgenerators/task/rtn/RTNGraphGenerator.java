@@ -12,7 +12,6 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import jaicore.basic.PerformanceLogger;
 import jaicore.basic.sets.SetUtil;
 import jaicore.logic.fol.structure.ConstantParam;
 import jaicore.logic.fol.structure.Literal;
@@ -23,11 +22,12 @@ import jaicore.planning.model.ceoc.CEOCOperation;
 import jaicore.planning.model.core.Action;
 import jaicore.planning.model.core.Operation;
 import jaicore.planning.model.core.PlannerUtil;
+import jaicore.planning.model.task.rtn.RTNMethod;
 import jaicore.planning.model.task.rtn.RTNPlanningProblem;
 import jaicore.planning.model.task.stn.Method;
 import jaicore.planning.model.task.stn.MethodInstance;
-import jaicore.search.structure.core.GraphGenerator;
-import jaicore.search.structure.core.NodeExpansionDescription;
+import jaicore.search.core.interfaces.GraphGenerator;
+import jaicore.search.model.travesaltree.NodeExpansionDescription;
 import jaicore.search.structure.graphgenerator.NodeGoalTester;
 import jaicore.search.structure.graphgenerator.SingleRootGenerator;
 import jaicore.search.structure.graphgenerator.SuccessorGenerator;
@@ -36,11 +36,11 @@ public class RTNGraphGenerator implements GraphGenerator<RTNNode, RTNEdge> {
 
 	private static final Logger logger = LoggerFactory.getLogger(RTNGraphGenerator.class);
 
-	private final RTNPlanningProblem problem;
+	private final RTNPlanningProblem<CEOCOperation,RTNMethod,CEOCAction> problem;
 	private final Map<String, Operation> primitiveTasks = new HashMap<>();
 	private final TaskPlannerUtil util = new TaskPlannerUtil(null);
 
-	public RTNGraphGenerator(RTNPlanningProblem problem) {
+	public RTNGraphGenerator(RTNPlanningProblem<CEOCOperation,RTNMethod,CEOCAction> problem) {
 		this.problem = problem;
 		for (Operation op : problem.getDomain().getOperations())
 			primitiveTasks.put(op.getName(), op);
@@ -54,7 +54,6 @@ public class RTNGraphGenerator implements GraphGenerator<RTNNode, RTNEdge> {
 	@Override
 	public SuccessorGenerator<RTNNode, RTNEdge> getSuccessorGenerator() {
 		return l -> {
-			PerformanceLogger.logStart("successor computation init");
 			final List<NodeExpansionDescription<RTNNode, RTNEdge>> successors = new ArrayList<>();
 			final Monom state = l.getState();
 			final List<Literal> currentlyRemainingTasks = l.getRemainingTasks();
@@ -64,11 +63,9 @@ public class RTNGraphGenerator implements GraphGenerator<RTNNode, RTNEdge> {
 			final Literal nextTask = new Literal(nextTaskTmp.getPropertyName().substring(nextTaskTmp.getPropertyName().indexOf("-") + 1, nextTaskTmp.getPropertyName().length()),
 					nextTaskTmp.getParameters());
 			final String actualTaskName = nextTask.getPropertyName();
-			PerformanceLogger.logEnd("successor computation init");
 			
 			/* if this is an or-node, perform the split as always */
 			if (!l.isAndNode()) {
-				PerformanceLogger.logStart("successor computation: Computing OR-Nodes");
 
 				/* if the task is primitive */
 
@@ -76,11 +73,8 @@ public class RTNGraphGenerator implements GraphGenerator<RTNNode, RTNEdge> {
 
 					logger.info("Computing successors for PRIMITIVE task {} in state {}", nextTask, state);
 
-					PerformanceLogger.logStart("Compute applicable actions");
 					final Collection<Action> applicableActions = util.getActionsForPrimitiveTaskThatAreApplicableInState(null, primitiveTasks.get(actualTaskName), nextTask,
 							state);
-					PerformanceLogger.logEnd("Compute applicable actions");
-					PerformanceLogger.logStart("Generate nodes for applicable actions");
 					for (Action applicableAction : applicableActions) {
 						logger.info("Adding successor for PRIMITIVE task {} in state {}: {}", nextTask, state, applicableAction.getEncoding());
 
@@ -89,19 +83,11 @@ public class RTNGraphGenerator implements GraphGenerator<RTNNode, RTNEdge> {
 										+ applicableAction + " is supposed to be aplpicable in state " + state + " but it is not!");
 
 						/* if the depth is % k == 0, then compute the rest problem explicitly */
-						PerformanceLogger.logStart("copy state");
 						final Monom updatedState = new Monom(state, false);
-						PerformanceLogger.logEnd("copy state");
-						PerformanceLogger.logStart("explicit cast");
 						final CEOCOperation op = (CEOCOperation) applicableAction.getOperation();
-						PerformanceLogger.logEnd("explicit cast");
-						PerformanceLogger.logStart("copy action");
 						final CEOCAction relevantAction = new CEOCAction(op, applicableAction.getGrounding());
-						PerformanceLogger.logEnd("copy action");
 						try {
-							PerformanceLogger.logStart("update state");
 							PlannerUtil.updateState(updatedState, applicableAction);
-							PerformanceLogger.logEnd("update state");
 						} catch (Exception e) {
 							System.out.println("apply " + applicableAction.getEncoding() + " to state: " + state);
 							System.out.println("addlists: " + relevantAction.getAddLists());
@@ -110,13 +96,10 @@ public class RTNGraphGenerator implements GraphGenerator<RTNNode, RTNEdge> {
 						}
 						final List<Literal> remainingTasks = new ArrayList<>(currentlyRemainingTasks);
 						remainingTasks.remove(0);
-						PerformanceLogger.logStart("insert node");
 						boolean isAndNode = remainingTasksInitializeANDNode(remainingTasks);
 						successors.add(new NodeExpansionDescription<>(l, new RTNNode(isAndNode, updatedState, remainingTasks), new RTNEdge(null, null, relevantAction), null));
-						PerformanceLogger.logEnd("insert node");
 					}
 					assert checkDoubleNodes(successors);
-					PerformanceLogger.logEnd("Generate nodes for applicable actions");
 					logger.info("Computed {} successors", successors.size());
 				}
 
@@ -127,11 +110,8 @@ public class RTNGraphGenerator implements GraphGenerator<RTNNode, RTNEdge> {
 					final Set<Method> usedMethods = new HashSet<>();
 
 					/* if this is an OR-Node */
-					PerformanceLogger.logStart("Compute applicable method instances");
 					final Collection<MethodInstance> instances = util.getMethodInstancesForTaskThatAreApplicableInState(null, this.problem.getDomain().getMethods(), nextTask,
 							state, currentlyRemainingTasks);
-					PerformanceLogger.logEnd("Compute applicable method instances");
-					PerformanceLogger.logStart("Generate nodes for applicable method instances");
 					for (MethodInstance instance : instances) {
 
 						/* skip this instance if the method is lonely and we already used it */
@@ -157,15 +137,11 @@ public class RTNGraphGenerator implements GraphGenerator<RTNNode, RTNEdge> {
 						boolean isAndNode = remainingTasksInitializeANDNode(remainingTasks);
 						successors.add(new NodeExpansionDescription<>(l, new RTNNode(isAndNode, state, remainingTasks), new RTNEdge(null, instance, null), null));
 					}
-					PerformanceLogger.logEnd("Generate nodes for applicable method instances");
 				}
-				PerformanceLogger.logEnd("successor computation: Computing OR-Nodes");
 			}
 
 			/* if this is an AND-node, create one successor for each refine action and the first after them */
 			else {
-
-				PerformanceLogger.logStart("successor computation: Computing AND-Nodes");
 
 				/* determine the next k tasks that are parallelizable */
 				final List<Literal> parallelizableTasks = new ArrayList<>();
@@ -250,7 +226,6 @@ public class RTNGraphGenerator implements GraphGenerator<RTNNode, RTNEdge> {
 				/* now create one node for the remaining tasks */
 				if (!tasksForLastNode.isEmpty())
 					successors.add(new NodeExpansionDescription<>(l, new RTNNode(false, state, tasksForLastNode), new RTNEdge(null, null, null), null));
-				PerformanceLogger.logEnd("successor computation: Computing AND-Nodes");
 			}
 
 			logger.info("Computed {} successors", successors.size());

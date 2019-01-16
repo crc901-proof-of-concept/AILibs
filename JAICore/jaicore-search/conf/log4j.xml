@@ -55,7 +55,15 @@
 		<appender-ref ref="traceFileAppender" />
 	</logger>
 	
-	<logger name="jaicore.search.algorithms.standard.mcts">
+	<logger name="jaicore.search.algorithms.andor">
+		<level value="debug" />
+	</logger>
+	
+	<logger name="jaicore.logic">
+		<level value="warn" />
+	</logger>
+	
+	<logger name="jaicore.search.algorithms.standard">
 		<level value="warn" />
 	</logger>
 </log4j:configuration>
