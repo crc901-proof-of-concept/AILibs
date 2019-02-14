@@ -73,7 +73,6 @@ allprojects {
 	}
 	//Dependencies for all(!) projects
 	dependencies {
-		
 		// configuration
 		compile group: 'org.aeonbits.owner', name: 'owner-java8', version:'1.0.10'
 		

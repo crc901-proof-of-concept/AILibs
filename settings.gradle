@@ -2,7 +2,6 @@ def jaicorePrefix = 'JAICore/'
 def configPrefix = 'softwareconfiguration/'
 
 // JAICore
-
 include ":JAICore:jaicore-basic"
 include ":JAICore:jaicore-concurrent"
 include ":JAICore:jaicore-ea"
