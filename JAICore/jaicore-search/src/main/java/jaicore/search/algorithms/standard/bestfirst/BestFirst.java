@@ -52,6 +52,7 @@ import jaicore.search.algorithms.standard.bestfirst.events.NodeExpansionJobSubmi
 import jaicore.search.algorithms.standard.bestfirst.events.RolloutEvent;
 import jaicore.search.algorithms.standard.bestfirst.events.SolutionAnnotationEvent;
 import jaicore.search.algorithms.standard.bestfirst.events.SuccessorComputationCompletedEvent;
+import jaicore.search.algorithms.standard.bestfirst.events.VerificationFailedEvent;
 import jaicore.search.algorithms.standard.bestfirst.exceptions.ControlledNodeEvaluationException;
 import jaicore.search.algorithms.standard.bestfirst.exceptions.NodeEvaluationException;
 import jaicore.search.algorithms.standard.bestfirst.nodeevaluation.DecoratingNodeEvaluator;
@@ -865,6 +866,12 @@ public class BestFirst<I extends GraphSearchWithSubpathEvaluationsInput<N, A, V>
 		this.logger.info("Shutdown completed");
 	}
 
+	@Subscribe
+	public void receiveEvaluationFailedEvent(final VerificationFailedEvent<N> event) {
+		this.post(event);
+	}
+
+	
 	@Subscribe
 	public void receiveSolutionCandidateEvent(final EvaluatedSearchSolutionCandidateFoundEvent<N, A, V> solutionEvent) {
 		try {

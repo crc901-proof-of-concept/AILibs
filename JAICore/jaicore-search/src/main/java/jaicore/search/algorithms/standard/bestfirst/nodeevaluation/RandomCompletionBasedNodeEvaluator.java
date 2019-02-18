@@ -37,7 +37,9 @@ import jaicore.search.algorithms.standard.bestfirst.events.EvaluatedSearchSoluti
 import jaicore.search.algorithms.standard.bestfirst.events.NodeAnnotationEvent;
 import jaicore.search.algorithms.standard.bestfirst.events.NodeExpansionCompletedEvent;
 import jaicore.search.algorithms.standard.bestfirst.events.RolloutEvent;
+import jaicore.search.algorithms.standard.bestfirst.events.VerificationFailedEvent;
 import jaicore.search.algorithms.standard.bestfirst.exceptions.NodeEvaluationException;
+import jaicore.search.algorithms.standard.bestfirst.exceptions.VerificationFailedException;
 import jaicore.search.algorithms.standard.gbf.SolutionEventBus;
 import jaicore.search.algorithms.standard.random.RandomSearch;
 import jaicore.search.algorithms.standard.uncertainty.IUncertaintySource;
@@ -213,7 +215,8 @@ public class RandomCompletionBasedNodeEvaluator<T, V extends Comparable<V>> exte
 				List<List<T>> completedPaths = new ArrayList<>();
 				this.logger.debug("Now drawing {} successful examples but no more than {}", this.samples, maxSamples);
 				while (successfulSamples < this.samples) {
-					logger.debug("Drawing next sample. {} samples have been drawn already, {} have been successful.", drawnSamples, successfulSamples);
+					logger.debug("Drawing next sample. {} samples have been drawn already, {} have been successful.",
+							drawnSamples, successfulSamples);
 					checkInterruption();
 					if (deadline > 0 && deadline < System.currentTimeMillis()) {
 						this.logger.info("Deadline for random completions hit! Finishing node evaluation.");
@@ -222,7 +225,7 @@ public class RandomCompletionBasedNodeEvaluator<T, V extends Comparable<V>> exte
 
 					/* determine time that is available to conduct next computation */
 					long remainingTimeForNodeEvaluation = deadline > 0 ? deadline - System.currentTimeMillis() : -1; // this
-																														//value
+																														// value
 																														// is
 																														// positive
 																														// or
@@ -252,7 +255,8 @@ public class RandomCompletionBasedNodeEvaluator<T, V extends Comparable<V>> exte
 					synchronized (this.completer) {
 						long startCompletion = System.currentTimeMillis();
 						if (this.completer.isCanceled()) {
-							this.logger.info("Completer has been canceled (perhaps due a cancel on the evaluator). Canceling sampling.");
+							this.logger.info(
+									"Completer has been canceled (perhaps due a cancel on the evaluator). Canceling sampling.");
 							break;
 						}
 						completedPath = new ArrayList<>(n.externalPath());
@@ -269,7 +273,8 @@ public class RandomCompletionBasedNodeEvaluator<T, V extends Comparable<V>> exte
 							break;
 						}
 						long finishedCompletion = System.currentTimeMillis();
-						this.logger.debug("Found solution of length {} in {}ms. Enable TRACE for details.", solutionPathFromN.getNodes().size(), finishedCompletion - startCompletion);
+						this.logger.debug("Found solution of length {} in {}ms. Enable TRACE for details.",
+								solutionPathFromN.getNodes().size(), finishedCompletion - startCompletion);
 						this.logger.trace("Solution path is {}", solutionPathFromN);
 						pathCompletion = new ArrayList<>(solutionPathFromN.getNodes());
 						pathCompletion.remove(0);
@@ -327,7 +332,9 @@ public class RandomCompletionBasedNodeEvaluator<T, V extends Comparable<V>> exte
 						}
 					} catch (Exception ex) {
 						if (countedExceptions == maxSamples) {
-							this.logger.warn("Too many retry attempts, giving up. {} samples were drawn, {} were successful.", drawnSamples, successfulSamples);
+							this.logger.warn(
+									"Too many retry attempts, giving up. {} samples were drawn, {} were successful.",
+									drawnSamples, successfulSamples);
 							throw new NodeEvaluationException(ex, "Error in the evaluation of a node!");
 						} else {
 							countedExceptions++;
@@ -343,7 +350,8 @@ public class RandomCompletionBasedNodeEvaluator<T, V extends Comparable<V>> exte
 				 * have failed with exception or were interrupted
 				 */
 				V best = this.bestKnownScoreUnderNodeInCompleterGraph.get(n.externalPath());
-				logger.debug("Finished sampling. {} samples were drawn, {} were successful. Best seen score is {}", drawnSamples, successfulSamples, best);
+				logger.debug("Finished sampling. {} samples were drawn, {} were successful. Best seen score is {}",
+						drawnSamples, successfulSamples, best);
 				if (best == null) {
 					checkInterruption();
 					if (countedExceptions > 0) {
@@ -456,6 +464,11 @@ public class RandomCompletionBasedNodeEvaluator<T, V extends Comparable<V>> exte
 			} catch (InterruptedException e) {
 				this.logger.info("Received interrupt during computation of f-value of {}.", path);
 				throw e;
+			} catch (VerificationFailedException e1) {
+				this.postVerificationFailed(e1, path);
+				this.unsuccessfulPaths.add(path);
+				throw new NodeEvaluationException(e1.getMessage());
+
 			} catch (Throwable e) {
 				this.logger.error(
 						"Computing the solution quality of {} failed due to an exception. Here is the trace:\n\t{}\n\t{}\n\t{}",
@@ -553,7 +566,9 @@ public class RandomCompletionBasedNodeEvaluator<T, V extends Comparable<V>> exte
 		if (loggerName != null)
 			completer.setLoggerName(loggerName + ".completer");
 		if (this.visualizeSubSearch) {
-//			new VisualizationWindow<>(this.completer).setTooltipGenerator(n -> n.toString() + "<br />f: " + String.valueOf(this.bestKnownScoreUnderNodeInCompleterGraph.get(n)));
+			// new VisualizationWindow<>(this.completer).setTooltipGenerator(n ->
+			// n.toString() + "<br />f: " +
+			// String.valueOf(this.bestKnownScoreUnderNodeInCompleterGraph.get(n)));
 		}
 		while (!(this.completer.next() instanceof AlgorithmInitializedEvent)) {
 			;
@@ -566,6 +581,14 @@ public class RandomCompletionBasedNodeEvaluator<T, V extends Comparable<V>> exte
 		this.completerInsertionSemaphore.release();
 	}
 
+	private void postVerificationFailed(VerificationFailedException e1, List<T> path) {
+		if (this.eventBus == null) {
+			this.eventBus = new SolutionEventBus<>();
+		}
+		eventBus.post(new VerificationFailedEvent<>(e1, path));
+
+	}
+	
 	@Override
 	public void registerSolutionListener(final Object listener) {
 		this.eventBus.register(listener);
