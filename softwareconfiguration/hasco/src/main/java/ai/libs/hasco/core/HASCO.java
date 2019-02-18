@@ -82,6 +82,9 @@ public class HASCO<S extends GraphSearchWithPathEvaluationsInput<N, A, V>, N, A,
 	/* runtime variables of algorithm */
 	private final TimeRecordingEvaluationWrapper<V> timeGrabbingEvaluationWrapper;
 
+	/*Listeners that get injected to the search eventstream*/
+	private Set<Object> searchListeners = new HashSet<>();
+
 	public HASCO(final RefinementConfiguredSoftwareConfigurationProblem<V> configurationProblem, final IHASCOPlanningReduction<N, A> planningGraphGeneratorDeriver,
 			final IOptimalPathInORGraphSearchFactory<S, N, A, V> searchFactory,
 			final AlgorithmicProblemReduction<? super GraphSearchWithPathEvaluationsInput<N, A, V>, ? super EvaluatedSearchGraphPath<N, A, V>, S, EvaluatedSearchGraphPath<N, A, V>> searchProblemTransformer) {
@@ -205,6 +208,11 @@ public class HASCO<S extends GraphSearchWithPathEvaluationsInput<N, A, V>, N, A,
 
 			});
 
+			/*External search listeners*/ 
+			for (Object listener: searchListeners) {
+				this.search.registerListener(listener);
+			}
+
 			/* now initialize the search */
 			this.logger.debug("Initializing the search");
 			AlgorithmEvent searchInitializationEvent = this.search.nextWithException();
@@ -295,6 +303,11 @@ public class HASCO<S extends GraphSearchWithPathEvaluationsInput<N, A, V>, N, A,
 	public HASCOConfig getConfig() {
 		return (HASCOConfig) super.getConfig();
 	}
+
+	public void registerListenerForSearch (final Object listener) {
+		this.searchListeners.add(listener);
+	}
+
 
 	public IOptimalPathInORGraphSearchFactory<S, N, A, V> getSearchFactory() {
 		return this.searchFactory;
