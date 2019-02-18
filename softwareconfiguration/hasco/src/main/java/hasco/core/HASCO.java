@@ -79,6 +79,9 @@ public class HASCO<ISearch extends GraphSearchInput<N, A>, N, A, V extends Compa
 	/* runtime variables of algorithm */
 	private final TimeRecordingEvaluationWrapper<V> timeGrabbingEvaluationWrapper;
 
+	/*Listeners that get injected to the search eventstream*/
+	private Set<Object> searchListeners = new HashSet<>();
+	
 	public HASCO(final RefinementConfiguredSoftwareConfigurationProblem<V> configurationProblem, final IHASCOPlanningGraphGeneratorDeriver<N, A> planningGraphGeneratorDeriver,
 			final IOptimalPathInORGraphSearchFactory<ISearch, N, A, V> searchFactory,
 			final AlgorithmProblemTransformer<GraphSearchWithPathEvaluationsInput<N, A, V>, ISearch> searchProblemTransformer) {
@@ -171,6 +174,11 @@ public class HASCO<ISearch extends GraphSearchInput<N, A>, N, A, V extends Compa
 						post(event);
 				}
 			});
+			
+			/*External search listeners*/ 
+			for (Object listener: searchListeners) {
+				this.search.registerListener(listener);
+			}
 
 			/* now initialize the search */
 			this.logger.debug("Initializing the search");
@@ -259,6 +267,10 @@ public class HASCO<ISearch extends GraphSearchInput<N, A>, N, A, V extends Compa
 		}
 		logger.info("Finished, now terminating");
 		this.terminate();
+	}
+	
+	public void registerListenerForSearch (final Object listener) {
+		this.searchListeners.add(listener);
 	}
 
 	public IHASCOPlanningGraphGeneratorDeriver<N, A> getPlanningGraphGeneratorDeriver() {
