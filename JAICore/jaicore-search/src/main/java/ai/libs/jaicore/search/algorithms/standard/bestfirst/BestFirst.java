@@ -56,6 +56,7 @@ import ai.libs.jaicore.search.algorithms.standard.bestfirst.events.RemovedGoalNo
 import ai.libs.jaicore.search.algorithms.standard.bestfirst.events.RolloutEvent;
 import ai.libs.jaicore.search.algorithms.standard.bestfirst.events.SolutionAnnotationEvent;
 import ai.libs.jaicore.search.algorithms.standard.bestfirst.events.SuccessorComputationCompletedEvent;
+import ai.libs.jaicore.search.algorithms.standard.bestfirst.events.VerificationFailedEvent;
 import ai.libs.jaicore.search.algorithms.standard.bestfirst.exceptions.ControlledNodeEvaluationException;
 import ai.libs.jaicore.search.algorithms.standard.bestfirst.nodeevaluation.DecoratingNodeEvaluator;
 import ai.libs.jaicore.search.algorithms.standard.bestfirst.nodeevaluation.ICancelableNodeEvaluator;
@@ -930,6 +931,12 @@ public class BestFirst<I extends GraphSearchWithSubpathEvaluationsInput<N, A, V>
 		}
 		this.logger.info("Shutdown completed");
 	}
+
+	@Subscribe
+	public void receiveEvaluationFailedEvent(final VerificationFailedEvent<N> event) {
+		this.post(event);
+	}
+
 
 	@Subscribe
 	public void receiveSolutionCandidateEvent(final EvaluatedSearchSolutionCandidateFoundEvent<N, A, V> solutionEvent) {

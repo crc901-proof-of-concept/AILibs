@@ -35,8 +35,10 @@ import ai.libs.jaicore.search.algorithms.standard.bestfirst.events.EvaluatedSear
 import ai.libs.jaicore.search.algorithms.standard.bestfirst.events.NodeAnnotationEvent;
 import ai.libs.jaicore.search.algorithms.standard.bestfirst.events.NodeExpansionCompletedEvent;
 import ai.libs.jaicore.search.algorithms.standard.bestfirst.events.RolloutEvent;
+import ai.libs.jaicore.search.algorithms.standard.bestfirst.events.VerificationFailedEvent;
 import ai.libs.jaicore.search.algorithms.standard.bestfirst.exceptions.NodeEvaluationException;
 import ai.libs.jaicore.search.algorithms.standard.bestfirst.exceptions.RCNEPathCompletionFailedException;
+import ai.libs.jaicore.search.algorithms.standard.bestfirst.exceptions.VerificationFailedException;
 import ai.libs.jaicore.search.algorithms.standard.gbf.SolutionEventBus;
 import ai.libs.jaicore.search.algorithms.standard.random.RandomSearch;
 import ai.libs.jaicore.search.algorithms.standard.uncertainty.IUncertaintySource;
@@ -391,6 +393,10 @@ implements IPotentiallyGraphDependentNodeEvaluator<T, V>, IPotentiallySolutionRe
 			} catch (InterruptedException e) {
 				this.logger.info("Received interrupt during computation of f-value.");
 				throw e;
+			} catch (VerificationFailedException e1) {
+				this.postVerificationFailed(e1, path);
+				this.unsuccessfulPaths.add(path);
+				throw new NodeEvaluationException(e1.getMessage());
 			} catch (Exception e) {
 				this.unsuccessfulPaths.add(path);
 				throw new NodeEvaluationException(e, "Error in evaluating node!");
@@ -484,6 +490,14 @@ implements IPotentiallyGraphDependentNodeEvaluator<T, V>, IPotentiallySolutionRe
 	@Subscribe
 	public void receiveCompleterEvent(final NodeExpansionCompletedEvent<Node<T, Double>> event) {
 		this.completerInsertionSemaphore.release();
+	}
+
+	private void postVerificationFailed(VerificationFailedException e1, List<T> path) {
+		if (this.eventBus == null) {
+			this.eventBus = new SolutionEventBus<>();
+		}
+		eventBus.post(new VerificationFailedEvent<>(e1, path));
+
 	}
 
 	@Override
